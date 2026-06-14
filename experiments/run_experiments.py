@@ -286,6 +286,30 @@ def generate_plots(plot_dir):
     ax3.legend()
     save_figure(fig3, plot_dir / "figure3_throughput_over_time.png")
 
+    fig4, ax4 = plt.subplots(figsize=(7, 4))
+    scenarios_to_plot = ["baseline", "attack", "weighted"]
+    colors = {"baseline": "tab:blue", "attack": "tab:orange", "weighted": "tab:purple"}
+    for scenario in scenarios_to_plot:
+        result = run_once(100, scenario, seed=0, sim_time=6.0)
+        times = [t for _, t in result["confirmation_times"]]
+        cumulative = list(range(1, len(times) + 1))
+        ax4.plot(
+            times,
+            cumulative,
+            linewidth=1.8,
+            color=colors[scenario],
+            linestyle="-" if scenario != "weighted" else "--",
+            marker="o" if scenario != "weighted" else "s",
+            label=scenario.capitalize() if scenario != "weighted" else "Weighted defense",
+            zorder=3 if scenario == "attack" else 2,
+        )
+    ax4.set_xlabel("Time (s)")
+    ax4.set_ylabel("Confirmed rounds")
+    ax4.set_title("Weighted-defense comparison")
+    ax4.grid(True, alpha=0.3)
+    ax4.legend()
+    save_figure(fig4, plot_dir / "figure4_weighted_defense_comparison.png")
+
 
 def safe_mean(xs):
     xs = [x for x in xs if x != float("inf")]
