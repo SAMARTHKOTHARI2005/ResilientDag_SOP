@@ -93,7 +93,7 @@ def run_once(N, scenario, seed, sim_time, fanout=None):
 
     backup_nodes = []
     if scenario == "recovered":
-        for i in range(5):
+        for i in range(f + 2):
             b = BackupNode(
                 node_id=f"backup-{i}",
                 env=env,
@@ -152,10 +152,12 @@ def run_once(N, scenario, seed, sim_time, fanout=None):
                 confirmed_rounds.append(round_num)
                 confirmation_times.append((round_num, (round_num + 1) * W))
                 last_confirm_time = (round_num + 1) * W
+                triggered = False  
             last_finalized_round = round_num
 
         if scenario == "recovered" and not triggered:
-            if last_confirm_time > 0.0 and env.now - last_confirm_time > TAU:
+            effective_last = last_confirm_time if last_confirm_time > 0.0 else 0.0
+            if env.now - effective_last > TAU:
                 for b in backup_nodes:
                     b.inject_witness_block(dag, network)
                     injected += 1
