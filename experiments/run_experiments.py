@@ -199,7 +199,7 @@ def save_figure(fig, path):
     plt.close(fig)
 
 
-def generate_plots(plot_dir):
+def generate_plots(plot_dir, seeds=30):
     plot_dir.mkdir(parents=True, exist_ok=True)
 
     fig1, ax1 = plt.subplots(figsize=(7, 4))
@@ -292,25 +292,83 @@ def generate_plots(plot_dir):
     scenarios_to_plot = ["baseline", "attack", "weighted"]
     colors = {"baseline": "tab:blue", "attack": "tab:orange", "weighted": "tab:purple"}
     for scenario in scenarios_to_plot:
-        result = run_once(100, scenario, seed=0, sim_time=6.0)
-        times = [t for _, t in result["confirmation_times"]]
-        cumulative = list(range(1, len(times) + 1))
-        ax4.plot(
-            times,
-            cumulative,
-            linewidth=1.8,
+        time_grid, mean_series, std_series = aggregate_confirmed_series(100, scenario, seeds, sim_time=6.0, dt=0.1)
+        if scenario == "weighted":
+            ax4.plot(
+                time_grid,
+                mean_series,
+                linewidth=4.0,
+                color=colors[scenario],
+                linestyle="--",
+                marker="s",
+                markersize=10,
+                markeredgewidth=1.8,
+                markeredgecolor="black",
+                markerfacecolor="white",
+                label="Weighted defense",
+                zorder=6,
+            )
+            ax4.annotate(
+                "Weighted",
+                xy=(time_grid[-1], mean_series[-1]),
+                xytext=(-28, 20),
+                textcoords="offset points",
+                color=colors[scenario],
+                fontsize=11,
+                fontweight="bold",
+                arrowprops={"arrowstyle": "->", "color": colors[scenario], "lw": 1.5},
+                zorder=7,
+            )
+        else:
+            ax4.plot(
+                time_grid,
+                mean_series,
+                linewidth=2.0,
+                color=colors[scenario],
+                linestyle="-",
+                marker="o",
+                markersize=4,
+                alpha=0.45 if scenario == "attack" else 0.8,
+                label=scenario.capitalize(),
+                zorder=3 if scenario == "attack" else 2,
+            )
+        ax4.fill_between(
+            time_grid,
+            [m - s for m, s in zip(mean_series, std_series)],
+            [m + s for m, s in zip(mean_series, std_series)],
             color=colors[scenario],
-            linestyle="-" if scenario != "weighted" else "--",
-            marker="o" if scenario != "weighted" else "s",
-            label=scenario.capitalize() if scenario != "weighted" else "Weighted defense",
-            zorder=3 if scenario == "attack" else 2,
+            alpha=0.1,
+            linewidth=0,
+            zorder=5 if scenario == "weighted" else 1,
         )
     ax4.set_xlabel("Time (s)")
     ax4.set_ylabel("Confirmed rounds")
-    ax4.set_title("Weighted-defense comparison")
+    ax4.set_title("Weighted-defense comparison (30-seed mean ± std)")
     ax4.grid(True, alpha=0.3)
     ax4.legend()
     save_figure(fig4, plot_dir / "figure4_weighted_defense_comparison.png")
+
+
+def confirmed_counts_at_times(result, time_grid):
+    confirmation_times = [t for _, t in result["confirmation_times"]]
+    counts = []
+    idx = 0
+    for t in time_grid:
+        while idx < len(confirmation_times) and confirmation_times[idx] <= t:
+            idx += 1
+        counts.append(idx)
+    return counts
+
+
+def aggregate_confirmed_series(N, scenario, seeds, sim_time, dt=0.1):
+    time_grid = [round(i * dt, 8) for i in range(int(sim_time / dt) + 1)]
+    seed_series = []
+    for seed in range(seeds):
+        result = run_once(N, scenario, seed, sim_time)
+        seed_series.append(confirmed_counts_at_times(result, time_grid))
+    mean_series = [safe_mean(values) for values in zip(*seed_series)]
+    std_series = [safe_std(values) for values in zip(*seed_series)]
+    return time_grid, mean_series, std_series
 
 
 def safe_mean(xs):
@@ -394,7 +452,7 @@ def main():
     print(f"Wrote {table_out}")
 
     plot_dir = Path(args.plot_dir)
-    generate_plots(plot_dir)
+    generate_plots(plot_dir, seeds=args.seeds)
     print(f"Wrote plots to {plot_dir}")
 
 
